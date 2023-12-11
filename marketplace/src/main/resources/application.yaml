@@ -1,0 +1,20 @@
+server:
+  port: 8082
+spring:
+  datasource:
+    username: root
+    password: 1234
+    url: jdbc:mysql://localhost:3307/itemQuest?createDatabaseIfNotExist=true
+    name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+kafka:
+  server: localhost:29092
+  offset-reset: latest
+  topics:
+    inbox: inbox.topic
+  groupId:
+    inbox: group.inbox.topic

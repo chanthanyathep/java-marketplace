@@ -1,0 +1,169 @@
+- create account
+@startuml
+    actor Client
+    activate UserService
+    Client -> UserService : POST /api /Client /create user
+    UserService-> UserService : validate input
+
+    database UserTbl
+
+    alt success case
+        UserService -> UserTbl : insert to UserTbl
+        activate UserTbl
+        UserTbl -> UserService : sql response
+        deactivate UserTbl
+        UserService -> UserService : check sql error
+            alt sql success case 
+                 UserService -> Client : create successfully
+            else 
+                 UserService -> Client : throw message to client
+            end
+    else
+        UserService -> Client : throw message to client
+    end
+    deactivate UserService
+@enduml
+
+
+- receive item by insertion
+@startuml
+    actor Client
+
+    activate InventoryService
+    Client -> InventoryService : POST /api /inventory
+    database InventoryTbl
+    InventoryService -> InventoryService : validate input
+    alt success case:
+        InventoryService -> InventoryTbl : insert item to inventoryDB
+        activate InventoryTbl
+        InventoryTbl -> InventoryService : sql response
+        deactivate InventoryTbl
+        InventoryService -> InventoryService : check sql error
+        alt sql success case 
+            InventoryService -> Client : create successfully
+        else 
+            InventoryService -> Client : throw message to client
+        end   
+    else 
+        InventoryService -> Client : throw message to client
+    end
+@enduml
+
+
+- add item to marketplace
+@startuml
+    actor Seller
+    activate MarketplaceService
+    Seller -> MarketplaceService : POST /api/marketplace
+    MarketplaceService -> MarketplaceService : validate input
+    database MarketplaceTbl
+    database InventoryTbl
+    queue Kafka
+    alt success case:
+        MarketplaceService -> InventoryTbl : select seller item from inventoryDB
+        activate InventoryTbl
+        InventoryTbl -> MarketplaceService : response item
+        deactivate InventoryTbl
+        MarketplaceService -> MarketplaceService : check item
+        alt success case:
+            MarketplaceService -> MarketplaceTbl : insert item to marketplaceDB
+            activate MarketplaceTbl
+            MarketplaceTbl -> MarketplaceService : sql response
+            deactivate MarketplaceTbl
+            MarketplaceService -> MarketplaceService : check sql error
+            alt sql success case:
+            MarketplaceService -> Seller : Successfully added to the market
+            MarketplaceService -> Kafka : send message to topic
+            else
+               MarketplaceService -> Seller : throw message to seller
+            end
+        else
+               MarketplaceService -> Seller : throw message to seller
+        end
+    else 
+        MarketplaceService -> Seller : throw message to seller
+    end
+    deactivate MarketplaceService
+@enduml
+
+
+- buy item from marketplace
+@startuml
+    actor Buyer
+    activate TransactionService
+    Buyer -> TransactionService : POST /api /transaction /buyItem
+    TransactionService -> TransactionService : validate input
+    database TransactionTbl
+    database MarketplaceTbl
+    database InventoryTbl
+    database UserTbl
+    queue Kafka
+    alt success case:
+        TransactionService -> UserTbl : select balance from UserTbl
+        activate UserTbl
+        UserTbl -> TransactionService : response item
+        
+        TransactionService -> TransactionService : check balance
+        alt success case:
+            TransactionService -> UserTbl : update balance seller and buyer
+            UserTbl -> TransactionService : sql response
+            deactivate UserTbl
+            
+            TransactionService -> InventoryTbl : update inventory seller and buyer
+            activate InventoryTbl
+            InventoryTbl -> TransactionService : sql response
+            deactivate InventoryTbl
+
+            TransactionService -> MarketplaceTbl : update item from marketplace
+            activate MarketplaceTbl
+            MarketplaceTbl -> TransactionService : sql response
+            deactivate MarketplaceTbl
+
+            TransactionService -> TransactionTbl : insert transaction
+            activate TransactionTbl
+            TransactionTbl -> TransactionService : sql response
+            deactivate TransactionTbl
+
+            TransactionService -> TransactionService : check sql error
+            alt sql success case 
+                TransactionService -> Buyer :  Already purchased
+                TransactionService -> Kafka : send message to topic
+            else 
+                TransactionService -> TransactionService : rollback 
+                TransactionService -> Buyer : throw message to buyer
+            end   
+        else
+               TransactionService -> Buyer : throw message to buyer
+        end
+    else 
+        TransactionService -> Buyer : throw message to buyer
+    end
+    deactivate TransactionService
+@enduml
+
+
+@startuml
+    actor User
+    queue Kafka
+    activate Kafka
+    activate InboxService
+    Kafka -> InboxService : receive meesage from kafka
+    deactivate Kafka
+    database InboxTbl
+
+    InboxService -> InboxTbl : insert message to inbox
+    InboxTbl -> InboxService : sql response
+    
+    User -> InboxService : GET /api/inbox/getMessage/id
+    InboxService -> InboxTbl  : select message from inboxTbl
+    InboxTbl -> InboxService : sql response
+    alt success case:
+        InboxService -> User :  response message
+    else
+       InboxService -> User: throw message to user
+    end
+
+@enduml
+
+
+
